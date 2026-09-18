@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <title>Captura de BU — apuração paralela</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,6 +40,11 @@
   .stage-idle{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:14px; text-align:center; padding:24px; color:var(--muted); pointer-events:none}
   .stage-idle svg{opacity:.7}
+  .livehint{position:absolute; left:12px; right:12px; bottom:12px; z-index:5; text-align:center;
+    background:rgba(10,14,20,.72); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,.14);
+    border-radius:12px; padding:11px 14px; font-size:14px; font-weight:600; color:#EAF0FA}
+  .livehint.step{background:rgba(61,214,140,.22); border-color:rgba(61,214,140,.5); color:#DFF7EA}
+  .livehint small{display:block; font-weight:500; font-size:12px; color:#AEB8C7; margin-top:2px}
 
   .parts{display:flex; gap:8px; align-items:center; justify-content:center; min-height:34px; flex-wrap:wrap}
   .chip{display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border-radius:999px;
@@ -71,6 +78,13 @@
   .badge{display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:5px 10px; border-radius:999px; margin-top:8px}
   .badge.ok{color:var(--ok); background:rgba(61,214,140,.12)}
   .badge.bad{color:var(--bad); background:rgba(242,104,91,.12)}
+  .success{display:flex; align-items:center; gap:12px; background:rgba(61,214,140,.14); border:1px solid rgba(61,214,140,.45);
+    color:#B6F0D2; border-radius:14px; padding:14px 16px; margin-bottom:14px; animation:pop .28s ease-out}
+  .success .ico{flex:0 0 auto; width:34px; height:34px; border-radius:50%; background:var(--ok); color:#08130C;
+    display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700}
+  .success .txt strong{display:block; font-size:15px; color:#E7ECF3}
+  .success .txt span{font-size:12.5px; color:#8FD9B4}
+  @keyframes pop{from{transform:scale(.96); opacity:0} to{transform:scale(1); opacity:1}}
   .assi{padding:14px 18px}
   .assi .lbl{font-size:12px; color:var(--muted); margin-bottom:6px}
   .assi .val{font-family:'JetBrains Mono',monospace; font-size:11px; word-break:break-all; color:var(--ink); line-height:1.5}
@@ -89,6 +103,7 @@
 <main>
   <div class="stage">
     <div id="reader"></div>
+    <div class="livehint hidden" id="livehint"></div>
     <div class="stage-idle" id="idle">
       <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
         <path d="M3 9V6a3 3 0 0 1 3-3h3M21 9V6a3 3 0 0 0-3-3h-3M3 15v3a3 3 0 0 0 3 3h3M21 15v3a3 3 0 0 1-3 3h-3"/>
@@ -111,7 +126,7 @@
   <div id="resultArea"></div>
 </main>
 
-<footer>Números de candidato e partido conforme o QR. Resultado não-oficial — apuração paralela.</footer>
+<footer>Números de candidato e partido conforme o QR. Resultado não-oficial — apuração paralela.<br>versão 6</footer>
 
 <script>
 /* ---------- Interpretação do BU (portado do parse_bu.py, validado) ---------- */
@@ -156,7 +171,8 @@ function renderResult(map){
   if(missing.length){area.innerHTML='';area.appendChild(el(`<div class="warnbox">Faltam partes: ${missing.map(i=>i+"/"+total).join(", ")}. Escaneie a(s) parte(s) que falta(m).</div>`));return;}
   const {cab,cargos}=parseToks(toks);
   const turno={"1":"1º turno","2":"2º turno"}[cab.TURN]||cab.TURN||"";
-  let html=`<div class="result"><div class="r-head"><h2>Boletim lido — ${present.length} de ${total} QR</h2>
+  let html=`<div class="success"><div class="ico">✓</div><div class="txt"><strong>Boletim lido com sucesso</strong><span>Seção ${cab.SECA||"?"} · Zona ${cab.ZONA||"?"} · ${present.length} de ${total} QR</span></div></div>`;
+  html+=`<div class="result"><div class="r-head"><h2>Resultado da seção</h2>
     <div class="meta"><span>Município <b>${cab.MUNI||"?"}</b></span><span>Zona <b>${cab.ZONA||"?"}</b></span>
     <span>Seção <b>${cab.SECA||"?"}</b></span><span>${turno} · ${cab.DTPL||""}</span>
     <span>Aptos <b>${cab.APTO||"?"}</b></span><span>Compareceram <b>${cab.COMP||"?"}</b></span></div></div>`;
@@ -181,13 +197,31 @@ function renderResult(map){
     html+=`</div>`;
   }
   html+=`<div class="assi"><div class="lbl">Assinatura do QR — confira com a impressa no papel</div><div class="val">${assi||"(ausente)"}</div></div></div>`;
-  area.innerHTML='';area.appendChild(el(html));area.scrollIntoView({behavior:'smooth',block:'start'});
+  area.innerHTML=html;area.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 /* ---------- Câmera + leitura (html5-qrcode: leitor forte) ---------- */
 const idle=document.getElementById('idle'), partsEl=document.getElementById('parts'), statusEl=document.getElementById('status'), btnStart=document.getElementById('btnStart');
 let qr=null, running=false, parts=new Map(), total=null, done=false;
+const livehint=document.getElementById('livehint');
 function setStatus(s){statusEl.textContent=s||'';}
+function nextMissing(){if(total===null)return null;for(let i=1;i<=total;i++)if(!parts.has(i))return i;return null;}
+function updateLiveHint(justRead){
+  if(done||!running){livehint.classList.add('hidden');return;}
+  livehint.classList.remove('hidden');
+  if(total===null||total===1){
+    livehint.className='livehint';livehint.innerHTML='Aponte para o QR do boletim';return;
+  }
+  const nx=nextMissing();
+  if(nx===null){livehint.classList.add('hidden');return;}
+  if(justRead){
+    livehint.className='livehint step';
+    livehint.innerHTML=`✓ Parte ${justRead} de ${total} lida<small>Agora aponte para a parte ${nx} de ${total}</small>`;
+  }else{
+    livehint.className='livehint';
+    livehint.innerHTML=`Aponte para a parte ${nx} de ${total}<small>${parts.size} de ${total} já lidas</small>`;
+  }
+}
 function renderParts(){
   if(total===null){partsEl.classList.add('hidden');return;}
   partsEl.classList.remove('hidden');partsEl.innerHTML='';
@@ -205,12 +239,14 @@ function handleText(text){
   renderParts();
   const faltam=total-parts.size;
   setStatus(faltam>0?`Parte ${info.n} lida. Faltam ${faltam}.`:`Todas as ${total} partes lidas.`);
-  if(parts.size>=total)finish();
+  if(parts.size>=total){finish();}
+  else{updateLiveHint(info.n);}
   return true;
 }
 async function finish(){
   done=true;
   if(qr&&running){try{await qr.stop();}catch(e){}running=false;}
+  livehint.classList.add('hidden');
   setStatus('Boletim completo ✓');btnStart.textContent='Escanear outro BU';btnStart.disabled=false;
   renderResult(parts);
 }
@@ -226,7 +262,7 @@ async function startCamera(){
     await qr.start({facingMode:"environment"}, config,
       (decoded)=>handleText(decoded),
       ()=>{});
-    running=true;setStatus('Câmera ativa — aponte para o QR');btnStart.textContent='Escaneando…';
+    running=true;setStatus('Câmera ativa — aponte para o QR');btnStart.textContent='Escaneando…';updateLiveHint();
   }catch(e){
     running=false;btnStart.disabled=false;idle.classList.remove('hidden');
     document.getElementById('resultArea').innerHTML='';
