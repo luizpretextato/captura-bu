@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js" onerror="window.__jsqrFail=1"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root{
     --bg:#0E1116; --surface:#171B22; --surface2:#1E242E;
@@ -30,26 +30,15 @@
   header p{font-size:12.5px; color:var(--muted); margin:2px 0 0}
   main{flex:1; display:flex; flex-direction:column; gap:14px; padding:8px 16px 20px; max-width:640px; width:100%; margin:0 auto}
 
-  /* Viewport da câmera — o herói */
   .stage{position:relative; width:100%; aspect-ratio:1/1; border-radius:18px; overflow:hidden;
     background:#000; border:1px solid var(--line); box-shadow:var(--shadow)}
-  video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block}
-  .frame{position:absolute; inset:0; pointer-events:none}
-  .frame::before{content:""; position:absolute; inset:14%; border-radius:14px;
-    box-shadow:0 0 0 2000px rgba(8,10,14,.34); }
-  .bracket{position:absolute; width:34px; height:34px; border:3px solid rgba(255,255,255,.92)}
-  .bracket.tl{top:14%; left:14%; border-right:0;border-bottom:0;border-radius:12px 0 0 0}
-  .bracket.tr{top:14%; right:14%; border-left:0;border-bottom:0;border-radius:0 12px 0 0}
-  .bracket.bl{bottom:14%; left:14%; border-right:0;border-top:0;border-radius:0 0 0 12px}
-  .bracket.br{bottom:14%; right:14%; border-left:0;border-top:0;border-radius:0 0 12px 0}
-  .stage.hit .bracket{border-color:var(--ok); transition:border-color .1s}
+  #reader{position:absolute; inset:0}
+  #reader video{width:100%!important; height:100%!important; object-fit:cover!important}
+  #reader img[alt="Info icon"]{display:none}
   .stage-idle{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:14px; text-align:center; padding:24px; color:var(--muted)}
+    gap:14px; text-align:center; padding:24px; color:var(--muted); pointer-events:none}
   .stage-idle svg{opacity:.7}
-  .hint{position:absolute; left:0; right:0; bottom:12px; text-align:center; font-size:13px;
-    color:#EAF0FA; text-shadow:0 1px 6px rgba(0,0,0,.7)}
 
-  /* Progresso das partes */
   .parts{display:flex; gap:8px; align-items:center; justify-content:center; min-height:34px; flex-wrap:wrap}
   .chip{display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border-radius:999px;
     background:var(--surface); border:1px solid var(--line); font-size:13px; color:var(--muted)}
@@ -58,7 +47,6 @@
   .chip.done .dot{background:var(--ok)}
   .status{font-size:13.5px; color:var(--muted); text-align:center; min-height:18px}
 
-  /* Botões */
   .actions{display:flex; gap:10px}
   button{font:inherit; font-weight:600; border:0; border-radius:12px; padding:14px 16px; cursor:pointer;
     flex:1; color:var(--ink); background:var(--surface2); border:1px solid var(--line)}
@@ -68,7 +56,6 @@
   .filebtn{position:relative; overflow:hidden}
   .filebtn input{position:absolute; inset:0; opacity:0; cursor:pointer}
 
-  /* Resultado */
   .result{background:var(--surface); border:1px solid var(--line); border-radius:16px; overflow:hidden}
   .r-head{padding:16px 18px; border-bottom:1px solid var(--line)}
   .r-head h2{margin:0; font-size:16px}
@@ -87,7 +74,6 @@
   .assi{padding:14px 18px}
   .assi .lbl{font-size:12px; color:var(--muted); margin-bottom:6px}
   .assi .val{font-family:'JetBrains Mono',monospace; font-size:11px; word-break:break-all; color:var(--ink); line-height:1.5}
-  .note{font-size:12px; color:var(--muted); padding:0 2px}
   .warnbox{background:rgba(242,184,75,.1); border:1px solid rgba(242,184,75,.35); color:#F6D28A;
     border-radius:12px; padding:12px 14px; font-size:13px}
   .hidden{display:none!important}
@@ -97,16 +83,12 @@
 <body>
 <header>
   <h1>Captura de Boletim de Urna</h1>
-  <p>Apuração paralela · leitura ao vivo do QR — protótipo de teste</p>
+  <p>Apuração paralela · leitura ao vivo do QR</p>
 </header>
 
 <main>
-  <div class="stage" id="stage">
-    <video id="video" playsinline muted></video>
-    <div class="frame">
-      <span class="bracket tl"></span><span class="bracket tr"></span>
-      <span class="bracket bl"></span><span class="bracket br"></span>
-    </div>
+  <div class="stage">
+    <div id="reader"></div>
     <div class="stage-idle" id="idle">
       <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
         <path d="M3 9V6a3 3 0 0 1 3-3h3M21 9V6a3 3 0 0 0-3-3h-3M3 15v3a3 3 0 0 0 3 3h3M21 15v3a3 3 0 0 1-3 3h-3"/>
@@ -114,13 +96,12 @@
       </svg>
       <div>Toque em <b>Iniciar câmera</b> e aponte para o QR do boletim.</div>
     </div>
-    <div class="hint hidden" id="hint">Aponte para o QR — mantenha firme</div>
   </div>
 
   <div class="parts hidden" id="parts"></div>
   <div class="status" id="status"></div>
 
-  <div class="actions" id="actions">
+  <div class="actions">
     <button class="primary" id="btnStart">Iniciar câmera</button>
     <button class="filebtn" id="btnFile">Enviar foto(s)
       <input type="file" accept="image/*" id="file" multiple>
@@ -132,16 +113,12 @@
 
 <footer>Números de candidato e partido conforme o QR. Resultado não-oficial — apuração paralela.</footer>
 
-<canvas id="canvas" class="hidden"></canvas>
-
 <script>
-/* ---------- Interpretação do BU (portado do parse_bu.py, já validado) ---------- */
+/* ---------- Interpretação do BU (portado do parse_bu.py, validado) ---------- */
 const HEADER_KEYS=new Set(["ORIG","ORLC","PROC","DTPL","PLEI","TURN","FASE","UNFE","MUNI","ZONA","SECA","IDUE","IDCA","HIQT","HICA","VERS","LOCA","APTO","APTS","APTT","COMP","FALT","HBBM","HBBG","HBSB","HBMA","DTAB","HRAB","DTFC","HRFC","IDEL"]);
 const TOTAIS=new Set(["APTA","APTS","APTT","NOMI","LEGC","BRAN","NULO","TOTC"]);
 const CARGOS={"1":"Presidente","3":"Governador","5":"Senador","6":"Deputado Federal","7":"Deputado Estadual","8":"Deputado Distrital","11":"Prefeito","12":"Vice-Prefeito","13":"Vereador"};
-
 function partInfo(t){const m=t.match(/^QRBU:(\d+):(\d+)/);return m?{n:+m[1],m:+m[2]}:null;}
-
 function reassemble(map){
   const ns=[...map.keys()].sort((a,b)=>a-b);
   const total=partInfo(map.get(ns[0])).m;
@@ -154,7 +131,6 @@ function reassemble(map){
   }
   return {toks,total,present:ns,missing,assi};
 }
-
 function parseToks(toks){
   const cab={},cargos=[];let cargo=null,part=null;
   for(const t of toks){
@@ -171,186 +147,109 @@ function parseToks(toks){
   }
   return {cab,cargos};
 }
-
-/* ---------- Render ---------- */
 function el(h){const d=document.createElement('div');d.innerHTML=h;return d.firstElementChild;}
 function sum(o){return Object.values(o).reduce((a,b)=>a+b,0);}
-
+function badge(ok){return ok?`<div class="badge ok">✓ Contas conferem</div>`:`<div class="badge bad">Conferência não fechou — revisar leitura</div>`;}
 function renderResult(map){
   const {toks,total,present,missing,assi}=reassemble(map);
   const area=document.getElementById('resultArea');
-  if(missing.length){
-    area.innerHTML='';
-    area.appendChild(el(`<div class="warnbox">Faltam partes: ${missing.map(i=>i+"/"+total).join(", ")}. Escaneie a(s) parte(s) que falta(m) — sem todas, o BU não é calculado.</div>`));
-    return;
-  }
+  if(missing.length){area.innerHTML='';area.appendChild(el(`<div class="warnbox">Faltam partes: ${missing.map(i=>i+"/"+total).join(", ")}. Escaneie a(s) parte(s) que falta(m).</div>`));return;}
   const {cab,cargos}=parseToks(toks);
   const turno={"1":"1º turno","2":"2º turno"}[cab.TURN]||cab.TURN||"";
-  let html=`<div class="result"><div class="r-head">
-    <h2>Boletim lido — ${present.length} de ${total} QR</h2>
-    <div class="meta">
-      <span>Município <b>${cab.MUNI||"?"}</b></span><span>Zona <b>${cab.ZONA||"?"}</b></span>
-      <span>Seção <b>${cab.SECA||"?"}</b></span><span>${turno} · ${cab.DTPL||""}</span>
-      <span>Aptos <b>${cab.APTO||"?"}</b></span><span>Compareceram <b>${cab.COMP||"?"}</b></span>
-    </div></div>`;
-
+  let html=`<div class="result"><div class="r-head"><h2>Boletim lido — ${present.length} de ${total} QR</h2>
+    <div class="meta"><span>Município <b>${cab.MUNI||"?"}</b></span><span>Zona <b>${cab.ZONA||"?"}</b></span>
+    <span>Seção <b>${cab.SECA||"?"}</b></span><span>${turno} · ${cab.DTPL||""}</span>
+    <span>Aptos <b>${cab.APTO||"?"}</b></span><span>Compareceram <b>${cab.COMP||"?"}</b></span></div></div>`;
   for(const c of cargos){
-    const nome=CARGOS[c.CARG]||("Cargo "+c.CARG);
-    const prop=c.tipo==="1";
-    const t=c.tot;
+    const nome=CARGOS[c.CARG]||("Cargo "+c.CARG),prop=c.tipo==="1",t=c.tot;
     html+=`<div class="cargo"><h3>${nome}<span class="tipo">${prop?"proporcional":"majoritário"}</span></h3>`;
     if(prop){
-      const parts=[...c.partidos].sort((a,b)=>b.TOTP-a.TOTP);
-      let sNom=0,sLeg=0;
+      const parts=[...c.partidos].sort((a,b)=>b.TOTP-a.TOTP);let sNom=0,sLeg=0;
       for(const p of parts){const nom=sum(p.votos);sNom+=nom;sLeg+=p.LEGP;
         html+=`<div class="row"><span class="n">Partido ${p.PART} <span style="opacity:.7">(nom ${nom} · leg ${p.LEGP})</span></span><span>${p.TOTP}</span></div>`;}
-      const cand=[];for(const p of parts)for(const [num,v] of Object.entries(p.votos))cand.push([num,v,p.PART]);
+      const cand=[];for(const p of parts)for(const [num,v] of Object.entries(p.votos))cand.push([num,v]);
       cand.sort((a,b)=>b[1]-a[1]);
       html+=`<div class="rule"></div><div class="row"><span class="n">Mais votado</span><span>${cand[0]?cand[0][0]+" · "+cand[0][1]+" votos":"—"}</span></div>`;
-      html+=`<div class="row"><span class="n">Brancos</span><span>${t.BRAN}</span></div><div class="row"><span class="n">Nulos</span><span>${t.NULO}</span></div>`;
-      html+=`<div class="row b"><span>Total</span><span>${t.TOTC}</span></div>`;
-      const ok=(sNom===+t.NOMI)&&(sLeg===+t.LEGC)&&((+t.NOMI)+(+t.LEGC)+(+t.BRAN)+(+t.NULO)===+t.TOTC);
-      html+=badge(ok);
+      html+=`<div class="row"><span class="n">Brancos</span><span>${t.BRAN}</span></div><div class="row"><span class="n">Nulos</span><span>${t.NULO}</span></div><div class="row b"><span>Total</span><span>${t.TOTC}</span></div>`;
+      html+=badge((sNom===+t.NOMI)&&(sLeg===+t.LEGC)&&((+t.NOMI)+(+t.LEGC)+(+t.BRAN)+(+t.NULO)===+t.TOTC));
     }else{
-      const flat=Object.entries(c.flat).sort((a,b)=>b[1]-a[1]);
-      let s=0;for(const [num,v] of flat){s+=v;html+=`<div class="row"><span class="n">Candidato ${num}</span><span>${v}</span></div>`;}
-      html+=`<div class="rule"></div><div class="row"><span class="n">Brancos</span><span>${t.BRAN}</span></div><div class="row"><span class="n">Nulos</span><span>${t.NULO}</span></div>`;
-      html+=`<div class="row b"><span>Total</span><span>${t.TOTC}</span></div>`;
-      const ok=(s===+t.NOMI)&&((+t.NOMI)+(+t.BRAN)+(+t.NULO)===+t.TOTC);
-      html+=badge(ok);
+      const flat=Object.entries(c.flat).sort((a,b)=>b[1]-a[1]);let s=0;
+      for(const [num,v] of flat){s+=v;html+=`<div class="row"><span class="n">Candidato ${num}</span><span>${v}</span></div>`;}
+      html+=`<div class="rule"></div><div class="row"><span class="n">Brancos</span><span>${t.BRAN}</span></div><div class="row"><span class="n">Nulos</span><span>${t.NULO}</span></div><div class="row b"><span>Total</span><span>${t.TOTC}</span></div>`;
+      html+=badge((s===+t.NOMI)&&((+t.NOMI)+(+t.BRAN)+(+t.NULO)===+t.TOTC));
     }
     html+=`</div>`;
   }
   html+=`<div class="assi"><div class="lbl">Assinatura do QR — confira com a impressa no papel</div><div class="val">${assi||"(ausente)"}</div></div></div>`;
-  area.innerHTML='';area.appendChild(el(html));
-  area.scrollIntoView({behavior:'smooth',block:'start'});
+  area.innerHTML='';area.appendChild(el(html));area.scrollIntoView({behavior:'smooth',block:'start'});
 }
-function badge(ok){return ok
-  ? `<div class="badge ok">✓ Contas conferem</div>`
-  : `<div class="badge bad">Conferência não fechou — revisar leitura</div>`;}
 
-/* ---------- Câmera + leitura ao vivo ---------- */
-const video=document.getElementById('video'), canvas=document.getElementById('canvas'), ctx=canvas.getContext('2d',{willReadFrequently:true});
-const stage=document.getElementById('stage'), idle=document.getElementById('idle'), hint=document.getElementById('hint');
-const partsEl=document.getElementById('parts'), statusEl=document.getElementById('status');
-const btnStart=document.getElementById('btnStart');
-let stream=null, scanning=false, detector=null, native=false;
-let parts=new Map(), total=null, done=false;
-
+/* ---------- Câmera + leitura (html5-qrcode: leitor forte) ---------- */
+const idle=document.getElementById('idle'), partsEl=document.getElementById('parts'), statusEl=document.getElementById('status'), btnStart=document.getElementById('btnStart');
+let qr=null, running=false, parts=new Map(), total=null, done=false;
 function setStatus(s){statusEl.textContent=s||'';}
-function flash(){stage.classList.add('hit');setTimeout(()=>stage.classList.remove('hit'),140);
-  if(navigator.vibrate)navigator.vibrate(60);}
-
 function renderParts(){
   if(total===null){partsEl.classList.add('hidden');return;}
   partsEl.classList.remove('hidden');partsEl.innerHTML='';
-  for(let i=1;i<=total;i++){
-    const ok=parts.has(i);
-    partsEl.appendChild(el(`<span class="chip ${ok?'done':''}"><span class="dot"></span>Parte ${i}/${total}${ok?' ✓':''}</span>`));
-  }
+  for(let i=1;i<=total;i++){const ok=parts.has(i);
+    partsEl.appendChild(el(`<span class="chip ${ok?'done':''}"><span class="dot"></span>Parte ${i}/${total}${ok?' ✓':''}</span>`));}
 }
-
 function handleText(text){
-  if(done||!text||!text.startsWith("QRBU:"))return;
-  const info=partInfo(text);if(!info)return;
-  if(total===null){total=info.m;}
-  if(info.m!==total){ // novo BU diferente -> reinicia
-    parts=new Map();total=info.m;
-  }
-  if(parts.has(info.n))return; // já temos essa parte
+  if(done||!text||!text.startsWith("QRBU:"))return false;
+  const info=partInfo(text);if(!info)return false;
+  if(total===null)total=info.m;
+  if(info.m!==total){parts=new Map();total=info.m;}
+  if(parts.has(info.n))return true;
   parts.set(info.n,text.trim());
-  flash();renderParts();
+  if(navigator.vibrate)navigator.vibrate(60);
+  renderParts();
   const faltam=total-parts.size;
   setStatus(faltam>0?`Parte ${info.n} lida. Faltam ${faltam}.`:`Todas as ${total} partes lidas.`);
-  if(parts.size>=total){finish();}
+  if(parts.size>=total)finish();
+  return true;
 }
-
-function finish(){
-  done=true;scanning=false;stopCamera();
-  hint.classList.add('hidden');setStatus('Boletim completo ✓');
-  btnStart.textContent='Escanear outro BU';btnStart.disabled=false;
+async function finish(){
+  done=true;
+  if(qr&&running){try{await qr.stop();}catch(e){}running=false;}
+  setStatus('Boletim completo ✓');btnStart.textContent='Escanear outro BU';btnStart.disabled=false;
   renderResult(parts);
 }
-
-async function scanLoop(){
-  if(!scanning)return;
-  try{
-    if(native){
-      const codes=await detector.detect(video);
-      for(const c of codes)handleText(c.rawValue);
-    }else if(window.jsQR){
-      const w=video.videoWidth,h=video.videoHeight;
-      if(w&&h){canvas.width=w;canvas.height=h;ctx.drawImage(video,0,0,w,h);
-        const d=ctx.getImageData(0,0,w,h);
-        const r=jsQR(d.data,w,h,{inversionAttempts:"attemptBoth"});
-        if(r)handleText(r.data);}
-    }
-  }catch(e){}
-  if(scanning)requestAnimationFrame(scanLoop);
-}
-
+function resetState(){done=false;parts=new Map();total=null;document.getElementById('resultArea').innerHTML='';renderParts();}
 async function startCamera(){
-  if(done){ // reset para novo BU
-    done=false;parts=new Map();total=null;
-    document.getElementById('resultArea').innerHTML='';renderParts();
-  }
-  setStatus('Abrindo câmera…');btnStart.disabled=true;
+  if(done)resetState();
+  if(running){return;}
+  setStatus('Abrindo câmera…');btnStart.disabled=true;idle.classList.add('hidden');
+  if(!qr)qr=new Html5Qrcode("reader",{formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE],verbose:false});
+  const config={fps:10, qrbox:undefined, aspectRatio:1.0,
+    experimentalFeatures:{useBarCodeDetectorIfSupported:true}};
   try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+    await qr.start({facingMode:"environment"}, config,
+      (decoded)=>handleText(decoded),
+      ()=>{});
+    running=true;setStatus('Câmera ativa — aponte para o QR');btnStart.textContent='Escaneando…';
   }catch(e){
-    setStatus('');btnStart.disabled=false;
+    running=false;btnStart.disabled=false;idle.classList.remove('hidden');
     document.getElementById('resultArea').innerHTML='';
-    document.getElementById('resultArea').appendChild(el(`<div class="warnbox">Não consegui abrir a câmera (${e.name}). Confira a permissão do navegador — ou use <b>Enviar foto</b>, que funciona do mesmo jeito.</div>`));
-    return;
+    document.getElementById('resultArea').appendChild(el(`<div class="warnbox">Não consegui abrir a câmera (${e&&e.name?e.name:e}). Verifique se abriu no navegador de verdade (não dentro de outro app) e a permissão de câmera — ou use <b>Enviar foto(s)</b>.</div>`));
   }
-  video.srcObject=stream;await video.play();
-  idle.classList.add('hidden');hint.classList.remove('hidden');
-  if('BarcodeDetector' in window){
-    try{const f=await BarcodeDetector.getSupportedFormats();
-      if(f.includes('qr_code')){detector=new BarcodeDetector({formats:['qr_code']});native=true;}
-    }catch(e){}
-  }
-  setStatus(native?'Câmera ativa — leitor nativo':'Câmera ativa — leitor em JS');
-  btnStart.textContent='Escaneando…';
-  scanning=true;scanLoop();
 }
-function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}}
-
 btnStart.addEventListener('click',startCamera);
 
-/* Plano B: foto(s) — aceita várias de uma vez */
-async function decodeImage(file){
-  const bmp=await createImageBitmap(file);
-  if('BarcodeDetector' in window){
-    try{const f2=await BarcodeDetector.getSupportedFormats();
-      if(f2.includes('qr_code')){const det=new BarcodeDetector({formats:['qr_code']});
-        const codes=await det.detect(bmp);const q=codes.find(c=>c.rawValue.startsWith("QRBU:"));if(q)return q.rawValue;}
-    }catch(e){}
-  }
-  if(window.jsQR){
-    for(const scale of [1,0.6,1.5,0.45,0.8]){
-      const w=Math.round(bmp.width*scale),h=Math.round(bmp.height*scale);
-      canvas.width=w;canvas.height=h;ctx.drawImage(bmp,0,0,w,h);
-      const d=ctx.getImageData(0,0,w,h);
-      const r=jsQR(d.data,w,h,{inversionAttempts:"attemptBoth"});
-      if(r&&r.data.startsWith("QRBU:"))return r.data;
-    }
-  }
-  return null;
-}
+/* Foto(s) — leitor forte via scanFile */
 document.getElementById('file').addEventListener('change',async e=>{
   const files=[...e.target.files];if(!files.length)return;
-  if(done){done=false;parts=new Map();total=null;document.getElementById('resultArea').innerHTML='';renderParts();}
+  if(done)resetState();
+  if(!qr)qr=new Html5Qrcode("reader",{formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE],verbose:false});
+  if(running){try{await qr.stop();}catch(_){}running=false;btnStart.disabled=false;btnStart.textContent='Iniciar câmera';idle.classList.remove('hidden');}
   let lidas=0,falhas=0;
   for(const f of files){
     setStatus(`Lendo foto ${lidas+falhas+1} de ${files.length}…`);
-    const text=await decodeImage(f);
-    if(text){handleText(text);lidas++;} else {falhas++;}
+    try{const decoded=await qr.scanFile(f,false);
+      if(handleText(decoded))lidas++;else falhas++;
+    }catch(err){falhas++;}
   }
   e.target.value='';
-  if(!done){
-    setStatus(`${lidas} QR lido(s)${falhas?`, ${falhas} não deu`:''}. ${total?`Faltam ${total-parts.size} parte(s).`:'Nenhum QR de BU reconhecido.'}`);
-  }
+  if(!done)setStatus(`${lidas} QR lido(s)${falhas?`, ${falhas} não deu`:''}. ${total?`Faltam ${total-parts.size} parte(s).`:'Nenhum QR de BU reconhecido nessas fotos.'}`);
 });
 </script>
 </body>
