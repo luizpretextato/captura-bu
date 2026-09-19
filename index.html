@@ -138,13 +138,25 @@
   <div id="resultArea"></div>
 </main>
 
-<footer>Números de candidato e partido conforme o QR. Resultado não-oficial — apuração paralela.<br>versão 7</footer>
+<footer>Números de candidato e partido conforme o QR. Resultado não-oficial — apuração paralela.<br>versão 8 — com nomes (amostra Santo André 2024)</footer>
 
 <script>
 /* ---------- Interpretação do BU (portado do parse_bu.py, validado) ---------- */
 const HEADER_KEYS=new Set(["ORIG","ORLC","PROC","DTPL","PLEI","TURN","FASE","UNFE","MUNI","ZONA","SECA","IDUE","IDCA","HIQT","HICA","VERS","LOCA","APTO","APTS","APTT","COMP","FALT","HBBM","HBBG","HBSB","HBMA","DTAB","HRAB","DTFC","HRFC","IDEL"]);
 const TOTAIS=new Set(["APTA","APTS","APTT","NOMI","LEGC","BRAN","NULO","TOTC"]);
 const CARGOS={"1":"Presidente","3":"Governador","5":"Senador","6":"Deputado Federal","7":"Deputado Estadual","8":"Deputado Distrital","11":"Prefeito","12":"Vice-Prefeito","13":"Vereador"};
+
+/* ---- Cadastro de candidatos (protótipo: Santo André/SP, muni 70572, 2024) ----
+   No app real, esta base vem do arquivo completo de candidatos do TSE por município.
+   Aqui está uma amostra para o teste. */
+const PARTIDOS={"10":"REPUBLICANOS","11":"PP","12":"PDT","13":"PT","15":"MDB","20":"PODEMOS","22":"PL","23":"CIDADANIA","25":"PRD","27":"DC","29":"PCO","30":"NOVO","35":"PMB","40":"PSB","43":"PV","44":"UNIÃO","45":"PSDB","50":"PSOL","55":"PSD","65":"PCdoB","70":"AVANTE","77":"SOLIDARIEDADE"};
+const CANDIDATOS={
+  "11":{"13":"Bete Siraque","22":"Luiz Zacarias","29":"Clenilza","30":"Coronel Sardano","40":"Eduardo Leite","45":"Gilvan"},
+  "13":{"10000":"Alberto Gama","20000":"Ageu Padoveze","30130":"Anderson Damasceno","40112":"Andrea Silva","40789":"André Duarte","43000":"Andrea do Sapeca","50456":"Andreia do MTST","70789":"Nino Brandão"}
+};
+function nomeCand(cargo,numero){return (CANDIDATOS[cargo]||{})[numero]||null;}
+function siglaPart(numPartido){return PARTIDOS[numPartido]||("nº "+numPartido);}
+function siglaPorCand(numero){return PARTIDOS[String(numero).slice(0,2)]||"";}
 function partInfo(t){const m=t.match(/^QRBU:(\d+):(\d+)/);return m?{n:+m[1],m:+m[2]}:null;}
 function reassemble(map){
   const ns=[...map.keys()].sort((a,b)=>a-b);
@@ -194,15 +206,21 @@ function renderResult(map){
     if(prop){
       const parts=[...c.partidos].sort((a,b)=>b.TOTP-a.TOTP);let sNom=0,sLeg=0;
       for(const p of parts){const nom=sum(p.votos);sNom+=nom;sLeg+=p.LEGP;
-        html+=`<div class="row"><span class="n">Partido ${p.PART} <span style="opacity:.7">(nom ${nom} · leg ${p.LEGP})</span></span><span>${p.TOTP}</span></div>`;}
+        html+=`<div class="row"><span class="n">${siglaPart(p.PART)} <span style="opacity:.6">nº ${p.PART} · nom ${nom} leg ${p.LEGP}</span></span><span>${p.TOTP}</span></div>`;}
       const cand=[];for(const p of parts)for(const [num,v] of Object.entries(p.votos))cand.push([num,v]);
       cand.sort((a,b)=>b[1]-a[1]);
-      html+=`<div class="rule"></div><div class="row"><span class="n">Mais votado</span><span>${cand[0]?cand[0][0]+" · "+cand[0][1]+" votos":"—"}</span></div>`;
+      let topLabel="—";
+      if(cand[0]){const nm=nomeCand(c.CARG,cand[0][0]),sg=siglaPorCand(cand[0][0]);
+        topLabel=(nm?nm+" ":"")+cand[0][0]+(sg?" · "+sg:"")+" · "+cand[0][1]+" votos";}
+      html+=`<div class="rule"></div><div class="row"><span class="n">Mais votado</span><span style="text-align:right">${topLabel}</span></div>`;
       html+=`<div class="row"><span class="n">Brancos</span><span>${t.BRAN}</span></div><div class="row"><span class="n">Nulos</span><span>${t.NULO}</span></div><div class="row b"><span>Total</span><span>${t.TOTC}</span></div>`;
       html+=badge((sNom===+t.NOMI)&&(sLeg===+t.LEGC)&&((+t.NOMI)+(+t.LEGC)+(+t.BRAN)+(+t.NULO)===+t.TOTC));
     }else{
       const flat=Object.entries(c.flat).sort((a,b)=>b[1]-a[1]);let s=0;
-      for(const [num,v] of flat){s+=v;html+=`<div class="row"><span class="n">Candidato ${num}</span><span>${v}</span></div>`;}
+      for(const [num,v] of flat){s+=v;
+        const nm=nomeCand(c.CARG,num),sg=siglaPorCand(num);
+        const label=nm?`${nm} <span style="opacity:.6">${num}${sg?" · "+sg:""}</span>`:`Candidato ${num}${sg?" · "+sg:""}`;
+        html+=`<div class="row"><span class="n">${label}</span><span>${v}</span></div>`;}
       html+=`<div class="rule"></div><div class="row"><span class="n">Brancos</span><span>${t.BRAN}</span></div><div class="row"><span class="n">Nulos</span><span>${t.NULO}</span></div><div class="row b"><span>Total</span><span>${t.TOTC}</span></div>`;
       html+=badge((s===+t.NOMI)&&((+t.NOMI)+(+t.BRAN)+(+t.NULO)===+t.TOTC));
     }
