@@ -52,6 +52,8 @@
   .cam-ctrl .zoom input{flex:1; accent-color:var(--accent)}
   .cam-ctrl .torch{flex:0 0 auto; width:auto; padding:10px 14px; font-size:13px}
   .cam-ctrl .torch.on{background:var(--warn); border-color:var(--warn); color:#1A1400}
+  .cam-ctrl .camsel{flex:0 0 auto; max-width:48%; font:inherit; font-size:12.5px; color:var(--ink);
+    background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:10px 10px}
   .parts{display:flex; gap:8px; align-items:center; justify-content:center; min-height:34px; flex-wrap:wrap}
   .chip{display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border-radius:999px;
     background:var(--surface); border:1px solid var(--line); font-size:13px; color:var(--muted)}
@@ -124,7 +126,7 @@
       <input type="range" id="zoom" min="1" max="5" step="0.1" value="1">
     </label>
     <button type="button" class="torch hidden" id="torch">Lanterna</button>
-    <button type="button" class="torch hidden" id="switchCam">Trocar câmera</button>
+    <select class="camsel hidden" id="camSel" aria-label="Escolher câmera"></select>
   </div>
   <div class="parts hidden" id="parts"></div>
   <div class="status" id="status"></div>
@@ -139,7 +141,7 @@
   <div id="resultArea"></div>
 </main>
 
-<footer>Números de candidato e partido conforme o QR. Resultado não-oficial — apuração paralela.<br>versão 9 — seleção de câmera + nomes</footer>
+<footer>Números de candidato e partido conforme o QR. Resultado não-oficial — apuração paralela.<br>versão 10 — seletor de câmera + foco contínuo</footer>
 
 <script>
 /* ---------- Interpretação do BU (portado do parse_bu.py, validado) ---------- */
@@ -236,7 +238,7 @@ const idle=document.getElementById('idle'), partsEl=document.getElementById('par
 let qr=null, running=false, parts=new Map(), total=null, done=false;
 let cameras=[], camIndex=0;
 const livehint=document.getElementById('livehint');
-const switchCamBtn=document.getElementById('switchCam');
+const camSel=document.getElementById('camSel');
 const BAD_CAM=/ultra|grande.?angular|wide.?angle|tele|zoom|depth|profund|macro|mono|infra/i;
 const IS_BACK=c=>/back|traseira|rear|environment/i.test(c.label||"");
 async function listCameras(){
@@ -246,10 +248,17 @@ async function listCameras(){
     return (BAD_CAM.test(a.label)?1:0)-(BAD_CAM.test(b.label)?1:0);
   });
   camIndex=0;
+  camSel.innerHTML='';
+  cameras.forEach((c,i)=>{
+    const o=document.createElement('option');o.value=i;
+    o.textContent=c.label?c.label.replace(/camera2?\s*/i,'Câmera ').slice(0,32):('Câmera '+(i+1));
+    camSel.appendChild(o);
+  });
 }
 function updateCamSwitch(){
   const show=cameras.length>=2;
-  switchCamBtn.classList.toggle('hidden',!show);
+  camSel.classList.toggle('hidden',!show);
+  camSel.value=String(camIndex);
   if(show)document.getElementById('camCtrl').classList.remove('hidden');
 }
 function setStatus(s){statusEl.textContent=s||'';}
@@ -306,15 +315,17 @@ async function startCamera(){
   if(!qr)qr=new Html5Qrcode("reader",{formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE],verbose:false});
   if(!cameras.length)await listCameras();
   const cam=cameras[camIndex];
-  const vc=cam?{deviceId:{exact:cam.id},width:{ideal:1920},height:{ideal:1080}}
-              :{facingMode:"environment",width:{ideal:1920},height:{ideal:1080}};
+  const vc=cam?{deviceId:{exact:cam.id},width:{ideal:1920},height:{ideal:1080},advanced:[{focusMode:"continuous"}]}
+              :{facingMode:"environment",width:{ideal:1920},height:{ideal:1080},advanced:[{focusMode:"continuous"}]};
   const config={fps:10, qrbox:undefined, aspectRatio:1.0,
     experimentalFeatures:{useBarCodeDetectorIfSupported:true}, videoConstraints:vc};
   try{
     await qr.start(cam?cam.id:{facingMode:"environment"}, config,
       (decoded)=>handleText(decoded),
       ()=>{});
-    running=true;setStatus('Câmera ativa — aponte para o QR');btnStart.textContent='Escaneando…';updateLiveHint();
+    running=true;
+    setStatus(cam&&cam.label?('Câmera: '+cam.label.replace(/camera2?\s*/i,'').slice(0,28)):'Câmera ativa — aponte para o QR');
+    btnStart.textContent='Escaneando…';updateLiveHint();
     setupCameraControls();updateCamSwitch();
   }catch(e){
     running=false;btnStart.disabled=false;idle.classList.remove('hidden');
@@ -350,9 +361,9 @@ torchBtn.addEventListener('click',()=>{
   try{qr.applyVideoConstraints({advanced:[{torch:torchOn}]});torchBtn.classList.toggle('on',torchOn);}
   catch(e){torchOn=!torchOn;}
 });
-switchCamBtn.addEventListener('click',async()=>{
-  if(cameras.length<2)return;
-  camIndex=(camIndex+1)%cameras.length;
+camSel.addEventListener('change',async()=>{
+  const i=parseInt(camSel.value,10); if(isNaN(i))return;
+  camIndex=i;
   if(running){try{await qr.stop();}catch(e){}running=false;}
   hideCameraControls();
   await startCamera();
