@@ -46,6 +46,12 @@
   .livehint.step{background:rgba(61,214,140,.22); border-color:rgba(61,214,140,.5); color:#DFF7EA}
   .livehint small{display:block; font-weight:500; font-size:12px; color:#AEB8C7; margin-top:2px}
 
+  .cam-ctrl{display:flex; gap:10px; align-items:center; justify-content:center}
+  .cam-ctrl .zoom{flex:1; display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--line);
+    border-radius:12px; padding:8px 12px; font-size:13px; color:var(--muted)}
+  .cam-ctrl .zoom input{flex:1; accent-color:var(--accent)}
+  .cam-ctrl .torch{flex:0 0 auto; width:auto; padding:10px 14px; font-size:13px}
+  .cam-ctrl .torch.on{background:var(--warn); border-color:var(--warn); color:#1A1400}
   .parts{display:flex; gap:8px; align-items:center; justify-content:center; min-height:34px; flex-wrap:wrap}
   .chip{display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border-radius:999px;
     background:var(--surface); border:1px solid var(--line); font-size:13px; color:var(--muted)}
@@ -113,6 +119,12 @@
     </div>
   </div>
 
+  <div class="cam-ctrl hidden" id="camCtrl">
+    <label class="zoom hidden" id="zoomWrap">Zoom
+      <input type="range" id="zoom" min="1" max="5" step="0.1" value="1">
+    </label>
+    <button type="button" class="torch hidden" id="torch">Lanterna</button>
+  </div>
   <div class="parts hidden" id="parts"></div>
   <div class="status" id="status"></div>
 
@@ -126,7 +138,7 @@
   <div id="resultArea"></div>
 </main>
 
-<footer>Números de candidato e partido conforme o QR. Resultado não-oficial — apuração paralela.<br>versão 6</footer>
+<footer>Números de candidato e partido conforme o QR. Resultado não-oficial — apuração paralela.<br>versão 7</footer>
 
 <script>
 /* ---------- Interpretação do BU (portado do parse_bu.py, validado) ---------- */
@@ -246,7 +258,7 @@ function handleText(text){
 async function finish(){
   done=true;
   if(qr&&running){try{await qr.stop();}catch(e){}running=false;}
-  livehint.classList.add('hidden');
+  livehint.classList.add('hidden');hideCameraControls();
   setStatus('Boletim completo ✓');btnStart.textContent='Escanear outro BU';btnStart.disabled=false;
   renderResult(parts);
 }
@@ -257,12 +269,14 @@ async function startCamera(){
   setStatus('Abrindo câmera…');btnStart.disabled=true;idle.classList.add('hidden');
   if(!qr)qr=new Html5Qrcode("reader",{formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE],verbose:false});
   const config={fps:10, qrbox:undefined, aspectRatio:1.0,
-    experimentalFeatures:{useBarCodeDetectorIfSupported:true}};
+    experimentalFeatures:{useBarCodeDetectorIfSupported:true},
+    videoConstraints:{facingMode:"environment", width:{ideal:1920}, height:{ideal:1080}}};
   try{
     await qr.start({facingMode:"environment"}, config,
       (decoded)=>handleText(decoded),
       ()=>{});
     running=true;setStatus('Câmera ativa — aponte para o QR');btnStart.textContent='Escaneando…';updateLiveHint();
+    setupCameraControls();
   }catch(e){
     running=false;btnStart.disabled=false;idle.classList.remove('hidden');
     document.getElementById('resultArea').innerHTML='';
@@ -271,12 +285,39 @@ async function startCamera(){
 }
 btnStart.addEventListener('click',startCamera);
 
+/* Controles de câmera: zoom óptico e lanterna (quando o aparelho suporta) */
+const camCtrl=document.getElementById('camCtrl'), zoomWrap=document.getElementById('zoomWrap'),
+      zoomInput=document.getElementById('zoom'), torchBtn=document.getElementById('torch');
+let torchOn=false;
+function setupCameraControls(){
+  let caps={};
+  try{caps=qr.getRunningTrackCapabilities()||{};}catch(e){caps={};}
+  let any=false;
+  if(caps.zoom&&typeof caps.zoom.max==='number'&&caps.zoom.max>caps.zoom.min){
+    zoomInput.min=caps.zoom.min; zoomInput.max=caps.zoom.max;
+    zoomInput.step=caps.zoom.step||0.1; zoomInput.value=caps.zoom.min;
+    zoomWrap.classList.remove('hidden'); any=true;
+  }else zoomWrap.classList.add('hidden');
+  if(caps.torch){torchBtn.classList.remove('hidden'); any=true;}
+  else torchBtn.classList.add('hidden');
+  camCtrl.classList.toggle('hidden',!any);
+}
+function hideCameraControls(){camCtrl.classList.add('hidden');torchOn=false;torchBtn.classList.remove('on');}
+zoomInput.addEventListener('input',()=>{
+  try{qr.applyVideoConstraints({advanced:[{zoom:parseFloat(zoomInput.value)}]});}catch(e){}
+});
+torchBtn.addEventListener('click',()=>{
+  torchOn=!torchOn;
+  try{qr.applyVideoConstraints({advanced:[{torch:torchOn}]});torchBtn.classList.toggle('on',torchOn);}
+  catch(e){torchOn=!torchOn;}
+});
+
 /* Foto(s) — leitor forte via scanFile */
 document.getElementById('file').addEventListener('change',async e=>{
   const files=[...e.target.files];if(!files.length)return;
   if(done)resetState();
   if(!qr)qr=new Html5Qrcode("reader",{formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE],verbose:false});
-  if(running){try{await qr.stop();}catch(_){}running=false;btnStart.disabled=false;btnStart.textContent='Iniciar câmera';idle.classList.remove('hidden');}
+  if(running){try{await qr.stop();}catch(_){}running=false;btnStart.disabled=false;btnStart.textContent='Iniciar câmera';idle.classList.remove('hidden');hideCameraControls();}
   let lidas=0,falhas=0;
   for(const f of files){
     setStatus(`Lendo foto ${lidas+falhas+1} de ${files.length}…`);
